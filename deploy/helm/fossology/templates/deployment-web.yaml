@@ -1,0 +1,197 @@
+#
+# SPDX-FileCopyrightText: © Fossology contributors
+#
+# SPDX-License-Identifier: FSFAP
+#
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fossology.fullname" . }}-web
+  labels:
+{{ include "fossology.labels" . | indent 4 }}
+    app: {{ include "fossology.fullname" . }}-web
+spec:
+  replicas: {{ .Values.web.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "fossology.fullname" . }}-web
+  template:
+    metadata:
+      labels:
+{{ include "fossology.labels" . | indent 8 }}
+        app: {{ include "fossology.fullname" . }}-web
+    spec:
+      serviceAccountName: {{ include "fossology.serviceAccountName" . }}
+      # config-sync sends SIGHUP to fo_scheduler running in a sibling container.
+      shareProcessNamespace: true
+      initContainers:
+        - name: wait-for-db
+          image: {{ include "fossology.postgresImage" . }}
+          imagePullPolicy: {{ .Values.images.postgres.pullPolicy }}
+          command: ["/bin/sh", "/config-source/wait-for-db.sh"]
+          env:
+{{ include "fossology.envWaitForDb" . | nindent 12 }}
+          volumeMounts:
+            - name: config-source
+              mountPath: /config-source
+              readOnly: true
+        - name: init-config-runtime
+          image: {{ include "fossology.webImage" . }}
+          imagePullPolicy: {{ .Values.images.web.pullPolicy }}
+          command: ["/bin/sh", "/config-source/init-config-runtime.sh"]
+          volumeMounts:
+            - name: config-runtime
+              mountPath: /config-runtime
+            - name: config-source
+              mountPath: /config-source
+              readOnly: true
+        - name: render-fossology-conf
+          image: {{ include "fossology.webImage" . }}
+          imagePullPolicy: {{ .Values.images.web.pullPolicy }}
+          command: ["/bin/sh", "/config-source/run-render-fossology-conf.sh"]
+          env:
+{{ include "fossology.envRenderConfig" . | nindent 12 }}
+            - name: FOSSOLOGY_RENDER_MODE
+              value: once
+            - name: FOSSOLOGY_RENDER_OUTPUT
+              value: /config-runtime/fossology.conf
+            - name: FOSSOLOGY_MIN_READY_WORKERS
+              value: {{ .Values.workers.minReadyStartup | quote }}
+            - name: FOSSOLOGY_RENDER_POLL_INTERVAL_SECONDS
+              value: {{ .Values.runtimeConfig.startupPollIntervalSeconds | quote }}
+          volumeMounts:
+            - name: config-runtime
+              mountPath: /config-runtime
+            - name: config-source
+              mountPath: /config-source
+              readOnly: true
+      containers:
+        - name: fossology
+          image: {{ include "fossology.webImage" . }}
+          imagePullPolicy: {{ .Values.images.web.pullPolicy }}
+          command: ["/bin/bash", "/config-source/start-web.sh"]
+          env:
+{{ include "fossology.envPodIp" . | nindent 12 }}
+{{ include "fossology.envDatabase" . | nindent 12 }}
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - name: fossology-repo
+              mountPath: /srv/fossology/repository
+            - name: config-runtime
+              mountPath: /usr/local/etc/fossology
+            - name: config-source
+              mountPath: /config-source
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /repo
+              port: 80
+            initialDelaySeconds: {{ .Values.web.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.web.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.web.startupProbe.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /repo
+              port: 80
+            initialDelaySeconds: {{ .Values.web.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.web.readinessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.web.readinessProbe.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: /repo
+              port: 80
+            initialDelaySeconds: {{ .Values.web.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.web.livenessProbe.periodSeconds }}
+{{- with .Values.web.resources }}
+          resources:
+{{ toYaml . | indent 12 }}
+{{- end }}
+        - name: scheduler
+          image: {{ include "fossology.webImage" . }}
+          imagePullPolicy: {{ .Values.images.web.pullPolicy }}
+          command: ["/bin/bash", "/config-source/start-scheduler.sh"]
+          env:
+{{ include "fossology.envPodIp" . | nindent 12 }}
+{{ include "fossology.envDatabase" . | nindent 12 }}
+          ports:
+            - containerPort: 24693
+              name: scheduler
+          volumeMounts:
+            - name: fossology-repo
+              mountPath: /srv/fossology/repository
+            - name: config-runtime
+              mountPath: /usr/local/etc/fossology
+            - name: config-source
+              mountPath: /config-source
+              readOnly: true
+            - name: ssh-private
+              mountPath: /run/secrets/ssh-private
+              readOnly: true
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pgrep -f '/usr/local/share/fossology/scheduler/agent/fo_scheduler'
+            initialDelaySeconds: {{ .Values.scheduler.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.scheduler.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.scheduler.startupProbe.failureThreshold }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pgrep -f '/usr/local/share/fossology/scheduler/agent/fo_scheduler'
+            initialDelaySeconds: {{ .Values.scheduler.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.scheduler.readinessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.scheduler.readinessProbe.failureThreshold }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pgrep -f '/usr/local/share/fossology/scheduler/agent/fo_scheduler'
+            initialDelaySeconds: {{ .Values.scheduler.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.scheduler.livenessProbe.periodSeconds }}
+{{- with .Values.scheduler.resources }}
+          resources:
+{{ toYaml . | indent 12 }}
+{{- end }}
+        - name: config-sync
+          image: {{ include "fossology.webImage" . }}
+          imagePullPolicy: {{ .Values.images.web.pullPolicy }}
+          command: ["/bin/sh", "/config-source/run-render-fossology-conf.sh"]
+          env:
+{{ include "fossology.envRenderConfig" . | nindent 12 }}
+            - name: FOSSOLOGY_RENDER_MODE
+              value: loop
+            - name: FOSSOLOGY_RENDER_OUTPUT
+              value: /usr/local/etc/fossology/fossology.conf
+            - name: FOSSOLOGY_MIN_READY_WORKERS
+              value: {{ .Values.workers.minReadySync | quote }}
+            - name: FOSSOLOGY_RENDER_POLL_INTERVAL_SECONDS
+              value: {{ .Values.runtimeConfig.pollIntervalSeconds | quote }}
+            - name: FOSSOLOGY_SIGNAL_COMMAND
+              value: pkill -HUP -f /usr/local/share/fossology/scheduler/agent/fo_scheduler
+          volumeMounts:
+            - name: config-runtime
+              mountPath: /usr/local/etc/fossology
+            - name: config-source
+              mountPath: /config-source
+              readOnly: true
+      volumes:
+        - name: fossology-repo
+          persistentVolumeClaim:
+            claimName: {{ include "fossology.repoPvcName" . }}
+        - name: config-runtime
+          # Start from the image defaults, then keep the rendered config writable.
+          emptyDir: {}
+        - name: config-source
+          configMap:
+            name: {{ include "fossology.runtimeConfigName" . }}
+        - name: ssh-private
+          secret:
+            secretName: {{ .Values.ssh.privateSecretName }}
+            defaultMode: 0600

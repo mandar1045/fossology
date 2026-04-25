@@ -1,0 +1,127 @@
+#
+# SPDX-FileCopyrightText: © Fossology contributors
+#
+# SPDX-License-Identifier: FSFAP
+#
+fullnameOverride: fossology
+
+images:
+  web:
+    repository: fossology/fossology
+    tag: latest
+    pullPolicy: IfNotPresent
+  worker:
+    repository: fossology/fossology-worker
+    tag: latest
+    pullPolicy: IfNotPresent
+  postgres:
+    repository: postgres
+    tag: "16"
+    pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+
+ssh:
+  privateSecretName: fossology-ssh-private
+  publicSecretName: fossology-ssh-public
+
+database:
+  host: ""
+  name: fossology
+  user: fossy
+  password: fossy
+  dbConfSecretName: ""
+  internal:
+    enabled: true
+    persistence:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+      storageClassName: standard
+
+repoPersistence:
+  existingClaim: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 5Gi
+  storageClassName: ""
+
+web:
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+    nodePort: null
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    failureThreshold: 30
+  readinessProbe:
+    initialDelaySeconds: 90
+    periodSeconds: 10
+    failureThreshold: 24
+  livenessProbe:
+    initialDelaySeconds: 150
+    periodSeconds: 30
+  resources: {}
+
+scheduler:
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    failureThreshold: 24
+  readinessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    failureThreshold: 12
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 15
+  resources: {}
+
+workers:
+  replicas: 2
+  podManagementPolicy: Parallel
+  maxAgentsPerWorker: 2
+  # Block the first config render until the scheduler has the expected worker pool.
+  minReadyStartup: 2
+  # Keep at least one worker registered during rollouts and transient restarts.
+  minReadySync: 1
+  readinessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    failureThreshold: 12
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 15
+  resources: {}
+
+runtimeConfig:
+  # Startup polls faster so the initial render does not stall the web pod for long.
+  startupPollIntervalSeconds: 3
+  # After startup, steady-state sync can be a little less aggressive.
+  pollIntervalSeconds: 5
+  timeoutSeconds: 300
+
+postInstallJob:
+  enabled: true
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 300
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: fossology.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []

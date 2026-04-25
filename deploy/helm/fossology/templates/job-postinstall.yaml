@@ -1,0 +1,40 @@
+#
+# SPDX-FileCopyrightText: © Fossology contributors
+#
+# SPDX-License-Identifier: FSFAP
+#
+{{- if .Values.postInstallJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "fossology.fullname" . }}-postinstall
+  labels:
+{{ include "fossology.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.postInstallJob.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.postInstallJob.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+{{ include "fossology.labels" . | indent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: fo-postinstall
+          image: {{ include "fossology.webImage" . }}
+          imagePullPolicy: {{ .Values.images.web.pullPolicy }}
+          command: ["/bin/bash", "/config-source/run-postinstall.sh"]
+          env:
+{{ include "fossology.envDatabase" . | nindent 12 }}
+          volumeMounts:
+            - name: config-source
+              mountPath: /config-source
+              readOnly: true
+      volumes:
+        - name: config-source
+          configMap:
+            name: {{ include "fossology.runtimeConfigName" . }}
+{{- end }}

@@ -1,0 +1,48 @@
+[FOSSOLOGY]
+port = 24693
+address = __SCHEDULER_HOST__
+depth = 3
+path = /srv/fossology/repository
+
+[HOSTS]
+localhost = localhost /usr/local/etc/fossology 10
+__HOSTS__
+
+[REPOSITORY]
+localhost[] = * 00 ff
+
+[DIRECTORIES]
+PROJECT=fossology
+PROJECTGROUP=fossy
+PROJECTUSER=fossy
+PREFIX=/usr/local
+BINDIR=$PREFIX/bin
+SBINDIR=$PREFIX/sbin
+LIBDIR=$PREFIX/lib
+INCLUDEDIR=$PREFIX/include
+LIBEXECDIR=$PREFIX/lib/fossology
+DATAROOTDIR=$PREFIX/share
+MODDIR=$DATAROOTDIR/fossology
+LOCALSTATEDIR=/var
+PROJECTSTATEDIR=$LOCALSTATEDIR/lib/fossology
+CACHEDIR=$LOCALSTATEDIR/cache/fossology
+LOGDIR=/var/log/fossology
+
+[EMAILNOTIFY]
+header = sampleheader.txt
+footer = samplefooter.txt
+subject = FOSSology scan complete
+client = /usr/bin/s-nail
+
+[EXT_AUTH]
+CONF_EXT_AUTH_ENABLE=false
+CONF_EXT_AUTH_ENV_USER=
+CONF_EXT_AUTH_ENV_MAIL=
+CONF_EXT_AUTH_ENV_DESC=
+CONF_EXT_AUTH_LOWERCASE_USER=true
+CONF_EXT_AUTH_NEW_USER_AUTO_CREATE=true
+CONF_EXT_AUTH_NEW_USER_AGENT_LIST=
+
+[AUTHENTICATION]
+provider = password
+resttoken = token

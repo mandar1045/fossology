@@ -1,0 +1,34 @@
+#
+# SPDX-FileCopyrightText: © Fossology contributors
+#
+# SPDX-License-Identifier: FSFAP
+#
+images:
+  web:
+    repository: fossology-k8s-web
+    tag: local
+    pullPolicy: Never
+  worker:
+    repository: fossology-k8s-worker
+    tag: local
+    pullPolicy: Never
+
+repoPersistence:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard
+
+database:
+  internal:
+    persistence:
+      storageClassName: standard
+
+web:
+  service:
+    type: NodePort
+    port: 80
+    targetPort: 80
+    nodePort: 30080
+
+ingress:
+  enabled: false

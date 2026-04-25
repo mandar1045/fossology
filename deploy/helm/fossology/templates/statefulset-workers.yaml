@@ -1,0 +1,67 @@
+#
+# SPDX-FileCopyrightText: © Fossology contributors
+#
+# SPDX-License-Identifier: FSFAP
+#
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "fossology.fullname" . }}-workers
+  labels:
+{{ include "fossology.labels" . | indent 4 }}
+    app: {{ include "fossology.fullname" . }}-workers
+spec:
+  serviceName: {{ include "fossology.fullname" . }}-workers
+  podManagementPolicy: {{ .Values.workers.podManagementPolicy }}
+  replicas: {{ .Values.workers.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "fossology.fullname" . }}-worker
+  template:
+    metadata:
+      labels:
+{{ include "fossology.labels" . | indent 8 }}
+        app: {{ include "fossology.fullname" . }}-worker
+    spec:
+      containers:
+        - name: fossology-worker
+          image: {{ include "fossology.workerImage" . }}
+          imagePullPolicy: {{ .Values.images.worker.pullPolicy }}
+          ports:
+            - containerPort: 22
+              name: ssh
+          volumeMounts:
+            - name: fossology-repo
+              mountPath: /srv/fossology/repository
+            - name: ssh-public
+              mountPath: /run/secrets/ssh
+              readOnly: true
+            - name: db-conf
+              mountPath: /usr/local/etc/fossology/Db.conf
+              subPath: Db.conf
+          readinessProbe:
+            tcpSocket:
+              port: 22
+            initialDelaySeconds: {{ .Values.workers.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.workers.readinessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.workers.readinessProbe.failureThreshold }}
+          livenessProbe:
+            tcpSocket:
+              port: 22
+            initialDelaySeconds: {{ .Values.workers.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.workers.livenessProbe.periodSeconds }}
+{{- with .Values.workers.resources }}
+          resources:
+{{ toYaml . | indent 12 }}
+{{- end }}
+      volumes:
+        - name: fossology-repo
+          persistentVolumeClaim:
+            claimName: {{ include "fossology.repoPvcName" . }}
+        - name: ssh-public
+          secret:
+            secretName: {{ .Values.ssh.publicSecretName }}
+            defaultMode: 0600
+        - name: db-conf
+          secret:
+            secretName: {{ include "fossology.dbConfSecretName" . }}

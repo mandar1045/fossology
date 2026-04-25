@@ -1,0 +1,37 @@
+#
+# SPDX-FileCopyrightText: © Fossology contributors
+#
+# SPDX-License-Identifier: FSFAP
+#
+images:
+  web:
+    repository: fossology/fossology
+    tag: latest
+    pullPolicy: IfNotPresent
+  worker:
+    repository: fossology/fossology-worker
+    tag: latest
+    pullPolicy: IfNotPresent
+
+repoPersistence:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: nfs-client
+
+web:
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+
+workers:
+  replicas: 3
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: fossology-staging.local
+      paths:
+        - path: /
+          pathType: Prefix
