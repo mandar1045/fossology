@@ -275,6 +275,24 @@ abstract class UploadPageBase extends DefaultPlugin
   }
 
   /**
+   * \brief Check whether a string contains shell metacharacters.
+   *
+   * The VCS upload fields end up on a shell command line in wget_agent
+   * (`git clone`, `svn export`, ...). basicShEscaping() only neutralises a
+   * few characters and the values are not always quoted, so metacharacters
+   * such as ; | & $ ( ) ` < > can lead to command injection. None of these
+   * belong in a repository URL, username, password or branch name, so reject
+   * them outright at the trust boundary.
+   *
+   * \param string $str Value to inspect
+   * \return bool True if a shell metacharacter (or newline) is present
+   */
+  protected function containsShellMetacharacters($str)
+  {
+    return preg_match('/[;&|`$(){}<>\r\n\'"\\\\]/', $str) === 1;
+  }
+
+  /**
    * Sanitize a comma-separated list of exclude path patterns.
    *
    * This function processes a string of comma-separated path patterns and returns

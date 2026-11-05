@@ -68,6 +68,9 @@ class UploadVcsPage extends UploadPageBase
     if (preg_match("@^((http)|(https))://([[:alnum:]]+)@i", $getUrl) != 1) {
       return array(false, _("Invalid URL") . $getUrl, $description);
     }
+    if ($this->containsShellMetacharacters($getUrl)) {
+      return array(false, _("Invalid URL") . $getUrl, $description);
+    }
     $getUrl = $this->basicShEscaping($getUrl);
 
     if ($request->getSession()->get(self::UPLOAD_FORM_BUILD_PARAMETER_NAME)
@@ -117,18 +120,25 @@ class UploadVcsPage extends UploadPageBase
     $jq_args = "$uploadId - $getUrl $VCSType ";
 
     $Username = trim($request->get('username'));
+    $Passwd = trim($request->get('passwd'));
+    $Branch = trim(explode(' ',trim($request->get('branch')))[0]);
+
+    foreach (array($Username, $Passwd, $Branch) as $vcsField) {
+      if ($this->containsShellMetacharacters($vcsField)) {
+        return array(false, _("Invalid VCS parameters"), $description);
+      }
+    }
+
     $Username = $this->basicShEscaping($Username);
     if (!empty($Username)) {
       $jq_args .= "--username $Username ";
     }
 
-    $Passwd = trim($request->get('passwd'));
     $Passwd = $this->basicShEscaping($Passwd);
     if (!empty($Passwd)) {
       $jq_args .= "--password $Passwd ";
     }
 
-    $Branch = trim(explode(' ',trim($request->get('branch')))[0]);
     if (!empty($Branch) && strcasecmp($VCSType,'git') == 0) {
       $jq_args .= "--single-branch --branch '$Branch'";
     }
